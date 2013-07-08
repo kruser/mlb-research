@@ -13,9 +13,19 @@ the runners moved 2 out of a potential 4 bases.
 '''
 from pymongo import MongoClient
 from datetime import datetime
-from kruser.mlb.PlayerRMI import PlayerRMI
+from kruser.mlb.EntityRMI import EntityRMI
 from kruser.mlb.RMI import RMI
 import argparse
+
+def make_date(datestr):
+    return datetime.strptime(datestr, '%m/%d/%Y')
+
+# setup the args.
+parser = argparse.ArgumentParser(description='Analyze baseball data for RMI. Results are presented to STDOUT in CSV format.')
+parser.add_argument('--team', dest='team', action='store_true', help='If set, the results will be by team instead of by player')
+parser.add_argument('--start', dest='start', type=make_date, metavar='MM/DD/YYYY', required=True, help='The start of your date range')
+parser.add_argument('--end', dest='end', type=make_date, metavar='MM/DD/YYYY', required=True, help='The end of your date range')
+args = parser.parse_args()
 
 # Setup the database connection
 client = MongoClient()
@@ -63,22 +73,31 @@ def adjust_rmi_for_runner(rmi, runner):
     rmi.add_actual_bases_moved(endInt - startInt)
     
 
-def adjust_rmi(players, atbat):
+def adjust_rmi(entities, atbat):
     '''
     Adjust the RMI for a player for a single AtBat
-    :param players:
+    :param entities: a dictionary of players or teams
     :param atbat:
     '''
-    batterId = atbat['batter']
+    
+    entityId = None
+    if args.team:
+        entityId = atbat['batter_team']
+    else:
+        entityId = atbat['batter']
     
     rmi = None
-    if batterId in players:
-        rmi = players[batterId]
+    if entityId in entities:
+        rmi = entities[entityId]
     else:
-        player = get_player(batterId)
-        if player:
-            rmi = PlayerRMI(batterId, player['first'], player['last'])
-            players[batterId] = rmi
+        if args.team:
+            rmi = EntityRMI(entityId, entityId)
+            entities[entityId] = rmi
+        else:
+            player = get_player(entityId)
+            if player:
+                rmi = EntityRMI(entityId, player['first'] + ' ' + player['last'])
+                entities[entityId] = rmi
     
     if rmi and 'runner' in atbat:
         runners = atbat['runner']
@@ -93,9 +112,6 @@ def get_player(playerId):
     '''
     playersCollection = db.players
     return playersCollection.find_one({"id":playerId})
-
-def make_date(datestr):
-    return datetime.strptime(datestr, '%m/%d/%Y')
 
 def get_minimum_potential_bases(start, end):
     '''
@@ -121,34 +137,28 @@ def get_minimum_potential_bases(start, end):
     else:
         return 0
     
-# setup the args.
-parser = argparse.ArgumentParser(description='Analyze baseball data for RMI. Results are presented to STDOUT in CSV format.')
-parser.add_argument('--team', dest='team', action='store_const', const=sum, default=max, help='If set, the results will be by team instead of by player')
-parser.add_argument('--start', dest='start', type=make_date, metavar='MM/DD/YYYY', required=True, help='The start of your date range')
-parser.add_argument('--end', dest='end', type=make_date, metavar='MM/DD/YYYY', required=True, help='The end of your date range')
-args = parser.parse_args()
-
 atBatsCollection = db.atbats
 
-players = {}
+playersOrTeams = {}
 atbatsWithRunners = atBatsCollection.find({'runner':{'$exists':'true'}, 'start_tfs_zulu':{'$gte':args.start, '$lt':args.end}})
 for atbat in atbatsWithRunners:
-    adjust_rmi(players, atbat)
+    adjust_rmi(playersOrTeams, atbat)
     
-allRMIs = players.values()
+allRMIs = playersOrTeams.values()
 allRMIs.sort(key=lambda rmi: rmi.rmi, reverse=True)
     
 minimumBases = get_minimum_potential_bases(args.start, args.end)
 leagueRMI = RMI();
 
-print ",Last,First,RMI,Actual Bases,Potential Bases,RBI" 
+print ",Name,RMI,Actual Bases,Potential Bases,RBI" 
+    
 i = 0
 for rmi in allRMIs:
     leagueRMI.add_potential_bases_moved(rmi.potentialBases)
     leagueRMI.add_actual_bases_moved(rmi.actualBases)
     if rmi.potentialBases > minimumBases:
         i+=1
-        print str(i) + ',' + rmi.lastName + ',' + rmi.firstName + ',' + str(rmi.rmi) + ',' + str(rmi.actualBases) + ',' + str(rmi.potentialBases) + ',' + str(rmi.rbi)
+        print str(i) + ',' + rmi.name + ',' + str(rmi.rmi) + ',' + str(rmi.actualBases) + ',' + str(rmi.potentialBases) + ',' + str(rmi.rbi)
 
-print 'League,RMI,' + str(leagueRMI.rmi) + ',' + str(leagueRMI.actualBases) + ',' + str(leagueRMI.potentialBases)
+print ',League RMI,' + str(leagueRMI.rmi) + ',' + str(leagueRMI.actualBases) + ',' + str(leagueRMI.potentialBases)
     
