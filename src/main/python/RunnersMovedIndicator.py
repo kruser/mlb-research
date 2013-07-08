@@ -11,16 +11,15 @@ the runners moved 2 out of a potential 4 bases.
 
 @author: kruser
 '''
-from pymongo import MongoClient;
-from datetime import datetime;
-from kruser.mlb.RMI import RMI;
-from pprint import pprint;
+from pymongo import MongoClient
+from datetime import datetime
+from kruser.mlb.PlayerRMI import PlayerRMI
+from kruser.mlb.RMI import RMI
+import argparse
 
-'''
-@param players: hashtable of players stats, key is their playerId
-@param atbat: an atbat object
-'''
-
+# Setup the database connection
+client = MongoClient()
+db = client.mlbatbat
 
 def adjust_rmi_for_runner(rmi, runner):
     '''
@@ -28,35 +27,41 @@ def adjust_rmi_for_runner(rmi, runner):
     :param rmi: the starting RMI, can't be null
     :param runner: the runner data, can't be null
     '''
-    start = runner['start'];
-    startInt = 0;
-    if start == '':
-        return;
-    elif start == '1B':
-        startInt = 1; 
-    elif start == '2B':
-        startInt = 2; 
-    elif start == '3B':
-        startInt = 3; 
-    rmi.add_potential_bases_moved(4 - startInt);
-    
-    end = runner['end'];
-    endInt = 0;
-    if end == '':
-        endInt = 4; 
-    elif end == '3B':
-        endInt = 3; 
-    elif end == '2B':
-        endInt = 2; 
-    elif end == '1B':
-        endInt = 1; 
-    rmi.add_actual_bases_moved(endInt - startInt);
-    
     if 'rbi' in runner:
-        rbi = runner['rbi'];
+        rbi = runner['rbi']
         if rbi == 'T':
-            rmi.add_rbi(1);
-    print rmi;
+            rmi.add_rbi(1)
+            
+    start = runner['start']
+    startInt = 0
+    if start == '':
+        return
+    elif start == '1B':
+        startInt = 1 
+    elif start == '2B':
+        startInt = 2 
+    elif start == '3B':
+        startInt = 3 
+    rmi.add_potential_bases_moved(4 - startInt)
+    
+    scored = ''
+    if 'score' in runner: 
+        scored = runner['score'] 
+        
+    end = runner['end']
+    endInt = 0
+    if end == '' and scored == 'T':
+        endInt = 4 
+    elif end == '':
+        endInt = startInt 
+    elif end == '3B':
+        endInt = 3 
+    elif end == '2B':
+        endInt = 2 
+    elif end == '1B':
+        endInt = 1 
+    rmi.add_actual_bases_moved(endInt - startInt)
+    
 
 def adjust_rmi(players, atbat):
     '''
@@ -64,29 +69,86 @@ def adjust_rmi(players, atbat):
     :param players:
     :param atbat:
     '''
-    batterId = atbat['batter'];
+    batterId = atbat['batter']
     
-    rmi = RMI();
+    rmi = None
     if batterId in players:
-        rmi = players[batterId];
+        rmi = players[batterId]
     else:
-        players[batterId] = rmi;
+        player = get_player(batterId)
+        if player:
+            rmi = PlayerRMI(batterId, player['first'], player['last'])
+            players[batterId] = rmi
     
-    if 'runner' in atbat:
-        runners = atbat['runner'];
-        for runner in runners:
-            adjust_rmi_for_runner(rmi, runner);
+    if rmi and 'runner' in atbat:
+        runners = atbat['runner']
+        if runners:
+            for runner in runners:
+                adjust_rmi_for_runner(rmi, runner)
+            
+def get_player(playerId):
+    '''
+    Retrieve a single player from the database, given an ID
+    :param playerId: the AtBatID for the player
+    '''
+    playersCollection = db.players
+    return playersCollection.find_one({"id":playerId})
 
-# Setup the database connection
-client = MongoClient();
-db = client.mlbatbat;
-atBatsCollection = db.atbats;
+def make_date(datestr):
+    return datetime.strptime(datestr, '%m/%d/%Y')
 
-# Define the time range for our query
-start = datetime(2013, 1, 1);
-end = datetime(2014, 1, 1);
+def get_minimum_potential_bases(start, end):
+    '''
+    Gets the minimum number of potential bases required to be considered
+    
+    Currently this calculation determines how many game a given team has played within the range of dates provided
+    and assumes that is roughly equal to the number of games each team has played. If there are less than 5 games,
+    the return value is 0, otherwise it is 2 bases per game.
+    
+    :param start: the starting date
+    :param end: the ending date
+    '''
+    gamesCollection = db.games
+    
+    # take the max of the twins or cubs games for the time allotted and assume the league played about that many games
+    # this isn't perfect as it assumes each team has played the same number of games over a time range, but it'll do 
+    # for now.
+    cubsGames = gamesCollection.find({'$or':[{'home_name_abbrev':'CHC'},{'away_name_abbrev':'CHC'}],'start':{'$gte':start, '$lt':end}}).count()
+    twinsGames = gamesCollection.find({'$or':[{'home_name_abbrev':'MIN'},{'away_name_abbrev':'MIN'}],'start':{'$gte':start, '$lt':end}}).count()
+    gameCount = max(cubsGames, twinsGames);
+    if gameCount >= 5: 
+        return gameCount * 2
+    else:
+        return 0
+    
+# setup the args.
+parser = argparse.ArgumentParser(description='Analyze baseball data for RMI. Results are presented to STDOUT in CSV format.')
+parser.add_argument('--team', dest='team', action='store_const', const=sum, default=max, help='If set, the results will be by team instead of by player')
+parser.add_argument('--start', dest='start', type=make_date, metavar='MM/DD/YYYY', required=True, help='The start of your date range')
+parser.add_argument('--end', dest='end', type=make_date, metavar='MM/DD/YYYY', required=True, help='The end of your date range')
+args = parser.parse_args()
 
-players = {};
-atbatsWithRunners = atBatsCollection.find({"runner.start":{"$in":["1B","2B","3B"]}, "start_tfs_zulu":{"$gte":start, "$lt":end}});
+atBatsCollection = db.atbats
+
+players = {}
+atbatsWithRunners = atBatsCollection.find({'runner':{'$exists':'true'}, 'start_tfs_zulu':{'$gte':args.start, '$lt':args.end}})
 for atbat in atbatsWithRunners:
-    adjust_rmi(players, atbat);
+    adjust_rmi(players, atbat)
+    
+allRMIs = players.values()
+allRMIs.sort(key=lambda rmi: rmi.rmi, reverse=True)
+    
+minimumBases = get_minimum_potential_bases(args.start, args.end)
+leagueRMI = RMI();
+
+print ",Last,First,RMI,Actual Bases,Potential Bases,RBI" 
+i = 0
+for rmi in allRMIs:
+    leagueRMI.add_potential_bases_moved(rmi.potentialBases)
+    leagueRMI.add_actual_bases_moved(rmi.actualBases)
+    if rmi.potentialBases > minimumBases:
+        i+=1
+        print str(i) + ',' + rmi.lastName + ',' + rmi.firstName + ',' + str(rmi.rmi) + ',' + str(rmi.actualBases) + ',' + str(rmi.potentialBases) + ',' + str(rmi.rbi)
+
+print 'League,RMI,' + str(leagueRMI.rmi) + ',' + str(leagueRMI.actualBases) + ',' + str(leagueRMI.potentialBases)
+    
