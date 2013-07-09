@@ -13,9 +13,10 @@ the runners moved 2 out of a potential 4 bases.
 '''
 from pymongo import MongoClient
 from datetime import datetime
-from kruser.mlb.EntityRMI import EntityRMI
 from kruser.mlb.RMI import RMI
+from kruser.mlb.EntityBattingStats import EntityBattingStats
 import argparse
+from kruser.mlb.PlateEventsEnum import PlateEventsEnum
 
 def make_date(datestr):
     return datetime.strptime(datestr, '%m/%d/%Y')
@@ -23,6 +24,7 @@ def make_date(datestr):
 # setup the args.
 parser = argparse.ArgumentParser(description='Analyze baseball data for RMI. Results are presented to STDOUT in CSV format.')
 parser.add_argument('--team', dest='team', action='store_true', help='If set, the results will be by team instead of by player')
+parser.add_argument('--stats', dest='stats', action='store_true', help='If set, some stats about the qualifying RMIs will be printed at the end of the results')
 parser.add_argument('--start', dest='start', type=make_date, metavar='MM/DD/YYYY', required=True, help='The start of your date range')
 parser.add_argument('--end', dest='end', type=make_date, metavar='MM/DD/YYYY', required=True, help='The end of your date range')
 args = parser.parse_args()
@@ -79,6 +81,12 @@ def adjust_rmi(entities, atbat):
     :param entities: a dictionary of players or teams
     :param atbat:
     '''
+    plateEvent = PlateEventsEnum.OTHER
+    if 'event' in atbat:
+        plateEvent = PlateEventsEnum.from_mlb_event(atbat['event'])
+        
+    if plateEvent == PlateEventsEnum.RUNNER_OUT:
+        return;
     
     entityId = None
     if args.team:
@@ -91,14 +99,16 @@ def adjust_rmi(entities, atbat):
         rmi = entities[entityId]
     else:
         if args.team:
-            rmi = EntityRMI(entityId, entityId)
+            rmi = EntityBattingStats(entityId, entityId)
             entities[entityId] = rmi
         else:
             player = get_player(entityId)
             if player:
-                rmi = EntityRMI(entityId, player['first'] + ' ' + player['last'])
+                rmi = EntityBattingStats(entityId, player['first'] + ' ' + player['last'])
                 entities[entityId] = rmi
     
+    rmi.add_plate_event(plateEvent);
+                
     if rmi and 'runner' in atbat:
         runners = atbat['runner']
         if runners:
@@ -140,7 +150,7 @@ def get_minimum_potential_bases(start, end):
 atBatsCollection = db.atbats
 
 playersOrTeams = {}
-atbatsWithRunners = atBatsCollection.find({'runner':{'$exists':'true'}, 'start_tfs_zulu':{'$gte':args.start, '$lt':args.end}})
+atbatsWithRunners = atBatsCollection.find({'start_tfs_zulu':{'$gte':args.start, '$lt':args.end}})
 for atbat in atbatsWithRunners:
     adjust_rmi(playersOrTeams, atbat)
     
@@ -150,7 +160,7 @@ allRMIs.sort(key=lambda rmi: rmi.rmi, reverse=True)
 minimumBases = get_minimum_potential_bases(args.start, args.end)
 leagueRMI = RMI();
 
-print ",Name,RMI,Actual Bases,Potential Bases,RBI" 
+print ",Name,RMI,Actual Bases,Potential Bases,RBI,Hits,At-Bats,Batting Avg,OBP,SLG" 
     
 i = 0
 for rmi in allRMIs:
@@ -158,7 +168,10 @@ for rmi in allRMIs:
     leagueRMI.add_actual_bases_moved(rmi.actualBases)
     if rmi.potentialBases > minimumBases:
         i+=1
-        print str(i) + ',' + rmi.name + ',' + str(rmi.rmi) + ',' + str(rmi.actualBases) + ',' + str(rmi.potentialBases) + ',' + str(rmi.rbi)
+        print '{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage())
 
-print ',League RMI,' + str(leagueRMI.rmi) + ',' + str(leagueRMI.actualBases) + ',' + str(leagueRMI.potentialBases)
+if args.stats:
+    print ''
+    print '*** STATS ***'
+    print 'League RMI: {}'.format(leagueRMI.rmi)
     
