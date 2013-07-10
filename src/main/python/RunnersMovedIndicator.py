@@ -11,12 +11,16 @@ the runners moved 2 out of a potential 4 bases.
 
 @author: kruser
 '''
-from pymongo import MongoClient
-from datetime import datetime
 from kruser.mlb.RMI import RMI
 from kruser.mlb.EntityBattingStats import EntityBattingStats
-import argparse
 from kruser.mlb.PlateEventsEnum import PlateEventsEnum
+from pymongo import MongoClient
+from datetime import datetime
+from numpy import mean
+from numpy import std
+from matplotlib import pyplot 
+from scipy import stats
+import argparse
 
 def make_date(datestr):
     return datetime.strptime(datestr, '%m/%d/%Y')
@@ -146,7 +150,63 @@ def get_minimum_potential_bases(start, end):
         return gameCount * 2
     else:
         return 0
+
+def plot_linear_regression(x, xLabel, y, yLabel, start, end):
+    '''
+    Plot a linear regression with the r^2 listed in the chart
+    :param x:
+    :param xLabel:
+    :param y:
+    :param yLabel:
+    '''
     
+    slope, intercept, r_value, p_value, std_err = stats.linregress(x,y);
+    print 'slope', slope
+    print 'intercept', intercept
+    print 'r^2', r_value**2
+    
+    rrrr = slope * x
+    print 
+    print rrrr
+    line = intercept + slope * x
+    pyplot.figure();
+    pyplot.plot(x, y, 'o')
+    #pyplot.plot(x, line, 'k-')
+
+    pyplot.title("{} vs {}, {} to {}".format(xLabel, yLabel, start.date().isoformat(), end.date().isoformat()))
+    pyplot.xlabel(xLabel)
+    pyplot.ylabel(yLabel)
+    
+def show_distribution_chart(rmis, start, end):
+    '''
+    Shows a histogram to represent the frequency of occurrences of the different RMIs
+    
+    :param rmis: an array of RMI objects
+    :param start: the starting date of the data, used for titles
+    :param end: the ending date of the data, used for titles
+    '''
+    rmiList = []
+    baList = []
+    slgList = []
+    obpList = []
+    
+    for rmiObj in rmis:
+        rmiList.append(rmiObj.rmi)
+        baList.append(rmiObj.get_batting_average())
+        slgList.append(rmiObj.get_slugging_percentage())
+        obpList.append(rmiObj.get_on_base_percentage())
+        
+    pyplot.figure();
+    pyplot.hist(rmiList, bins=20, histtype='stepfilled', color='black', alpha=0.8)
+    pyplot.title('RMI (Runners Moved Indicator) Distribution for {} through {}'.format(start.date().isoformat(), end.date().isoformat()))
+    pyplot.xlabel('RMI')
+    
+    plot_linear_regression(rmiList, "RMI", baList, "Batting Average", start, end)
+    plot_linear_regression(rmiList, "RMI", slgList, "Slugging Percentage", start, end)
+    plot_linear_regression(rmiList, "RMI", obpList, "On Base Percentage", start, end)
+    
+    pyplot.show()
+
 atBatsCollection = db.atbats
 
 playersOrTeams = {}
@@ -163,15 +223,22 @@ leagueRMI = RMI();
 print ",Name,RMI,Actual Bases,Potential Bases,RBI,Hits,At-Bats,Batting Avg,OBP,SLG" 
     
 i = 0
+qualifyingRMIs = [] 
 for rmi in allRMIs:
     leagueRMI.add_potential_bases_moved(rmi.potentialBases)
     leagueRMI.add_actual_bases_moved(rmi.actualBases)
     if rmi.potentialBases > minimumBases:
         i+=1
-        print '{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage())
+        print '{},{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage())
+        qualifyingRMIs.append(rmi)
 
 if args.stats:
     print ''
-    print '*** STATS ***'
+    print '#### STATS (*indicates computed against qualifiers) ####'
     print 'League RMI: {}'.format(leagueRMI.rmi)
+    print 'Mean*: {}'.format(mean([rmiObj.rmi for rmiObj in qualifyingRMIs]))
+    print 'Max*: {}'.format(max([rmiObj.rmi for rmiObj in qualifyingRMIs]))
+    print 'Min*: {}'.format(min([rmiObj.rmi for rmiObj in qualifyingRMIs]))
+    print 'STD*: {}'.format(std([rmiObj.rmi for rmiObj in qualifyingRMIs]))
+    show_distribution_chart(qualifyingRMIs, args.start, args.end)
     
