@@ -212,6 +212,7 @@ def show_distribution_chart(rmis, start, end, team=False):
         
     pyplot.figure();
     pyplot.hist(rmiList, bins=20, histtype='stepfilled', color='black', alpha=0.8)
+    #pyplot.hist(baList, bins=20, histtype='stepfilled', color='red', alpha=0.3)
     pyplot.title('RMI (Runners Moved Indicator) Distribution for {} through {}'.format(start.date().isoformat(), end.date().isoformat()))
     pyplot.xlabel('RMI')
     
