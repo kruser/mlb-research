@@ -27,10 +27,14 @@ class EntityBattingStats(RMI):
         self.walks = 0
         self.hitByPitch = 0
         self.sacrifices = 0
+        self.runs = 0
         super(EntityBattingStats, self).__init__()
         
     def add_rbi(self, rbi):
         self.rbi += rbi
+        
+    def add_runs(self, runs):
+        self.runs += runs
         
     def add_plate_event(self, plateEvent):
         '''

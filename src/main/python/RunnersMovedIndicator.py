@@ -18,9 +18,12 @@ from pymongo import MongoClient
 from datetime import datetime
 from numpy import mean
 from numpy import std
+from numpy import ndarray
+from numpy import array
 from matplotlib import pyplot 
 from scipy import stats
 import argparse
+import re
 
 def make_date(datestr):
     return datetime.strptime(datestr, '%m/%d/%Y')
@@ -48,6 +51,17 @@ def adjust_rmi_for_runner(rmi, runner):
         if rbi == 'T':
             rmi.add_rbi(1)
             
+    scored = ''
+    if 'score' in runner: 
+        scored = runner['score'] 
+        if scored == 'T':
+            rmi.add_runs(1)
+            
+    if 'event' in runner:
+        event = runner['event']
+        if re.search('runner out|caught stealing', event, re.IGNORECASE):
+            return
+                
     start = runner['start']
     startInt = 0
     if start == '':
@@ -60,10 +74,6 @@ def adjust_rmi_for_runner(rmi, runner):
         startInt = 3 
     rmi.add_potential_bases_moved(4 - startInt)
     
-    scored = ''
-    if 'score' in runner: 
-        scored = runner['score'] 
-        
     end = runner['end']
     endInt = 0
     if end == '' and scored == 'T':
@@ -161,40 +171,44 @@ def plot_linear_regression(x, xLabel, y, yLabel, start, end):
     '''
     
     slope, intercept, r_value, p_value, std_err = stats.linregress(x,y);
-    print 'slope', slope
-    print 'intercept', intercept
-    print 'r^2', r_value**2
+    print '______________________________________'
+    print '{} vs {} Stats'.format(xLabel, yLabel)
+    print 'Slope: ', slope
+    print 'Intercept: ', intercept
+    print 'R^2: ', r_value**2
     
-    rrrr = slope * x
-    print 
-    print rrrr
-    line = intercept + slope * x
+    xndArray = array(x);
+    
+    line = intercept + slope * xndArray
     pyplot.figure();
     pyplot.plot(x, y, 'o')
-    #pyplot.plot(x, line, 'k-')
+    pyplot.plot(xndArray, line, 'r-')
 
     pyplot.title("{} vs {}, {} to {}".format(xLabel, yLabel, start.date().isoformat(), end.date().isoformat()))
     pyplot.xlabel(xLabel)
     pyplot.ylabel(yLabel)
     
-def show_distribution_chart(rmis, start, end):
+def show_distribution_chart(rmis, start, end, team=False):
     '''
     Shows a histogram to represent the frequency of occurrences of the different RMIs
     
     :param rmis: an array of RMI objects
     :param start: the starting date of the data, used for titles
     :param end: the ending date of the data, used for titles
+    :param team: boolean to indicate if this is a team stat or not
     '''
     rmiList = []
     baList = []
     slgList = []
     obpList = []
+    runsList = []
     
     for rmiObj in rmis:
         rmiList.append(rmiObj.rmi)
         baList.append(rmiObj.get_batting_average())
         slgList.append(rmiObj.get_slugging_percentage())
         obpList.append(rmiObj.get_on_base_percentage())
+        runsList.append(rmiObj.runs)
         
     pyplot.figure();
     pyplot.hist(rmiList, bins=20, histtype='stepfilled', color='black', alpha=0.8)
@@ -204,6 +218,8 @@ def show_distribution_chart(rmis, start, end):
     plot_linear_regression(rmiList, "RMI", baList, "Batting Average", start, end)
     plot_linear_regression(rmiList, "RMI", slgList, "Slugging Percentage", start, end)
     plot_linear_regression(rmiList, "RMI", obpList, "On Base Percentage", start, end)
+    if team:
+        plot_linear_regression(rmiList, "RMI", runsList, "Runs", start, end)
     
     pyplot.show()
 
@@ -220,7 +236,10 @@ allRMIs.sort(key=lambda rmi: rmi.rmi, reverse=True)
 minimumBases = get_minimum_potential_bases(args.start, args.end)
 leagueRMI = RMI();
 
-print ",Name,RMI,Actual Bases,Potential Bases,RBI,Hits,At-Bats,Batting Avg,OBP,SLG" 
+if args.team:
+    print ",Name,RMI,Actual Bases,Potential Bases,RBI,Runs,Hits,At-Bats,Batting Avg,OBP,SLG" 
+else:
+    print ",Name,RMI,Actual Bases,Potential Bases,RBI,Hits,At-Bats,Batting Avg,OBP,SLG" 
     
 i = 0
 qualifyingRMIs = [] 
@@ -229,7 +248,10 @@ for rmi in allRMIs:
     leagueRMI.add_actual_bases_moved(rmi.actualBases)
     if rmi.potentialBases > minimumBases:
         i+=1
-        print '{},{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage())
+        if args.team:
+            print '{},{},{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.runs, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage())
+        else:
+            print '{},{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage())
         qualifyingRMIs.append(rmi)
 
 if args.stats:
@@ -240,5 +262,5 @@ if args.stats:
     print 'Max*: {}'.format(max([rmiObj.rmi for rmiObj in qualifyingRMIs]))
     print 'Min*: {}'.format(min([rmiObj.rmi for rmiObj in qualifyingRMIs]))
     print 'STD*: {}'.format(std([rmiObj.rmi for rmiObj in qualifyingRMIs]))
-    show_distribution_chart(qualifyingRMIs, args.start, args.end)
+    show_distribution_chart(qualifyingRMIs, args.start, args.end, args.team)
     
