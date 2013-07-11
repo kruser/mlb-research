@@ -18,7 +18,6 @@ from pymongo import MongoClient
 from datetime import datetime
 from numpy import mean
 from numpy import std
-from numpy import ndarray
 from numpy import array
 from matplotlib import pyplot 
 from scipy import stats
