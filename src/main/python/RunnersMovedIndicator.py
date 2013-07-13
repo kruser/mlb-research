@@ -67,10 +67,13 @@ def adjust_rmi_for_runner(rmi, runner):
         return
     elif start == '1B':
         startInt = 1 
+        rmi.firstBaseRunners += 1
     elif start == '2B':
         startInt = 2 
+        rmi.secondBaseRunners += 1
     elif start == '3B':
         startInt = 3 
+        rmi.thirdBaseRunners += 1
     rmi.add_potential_bases_moved(4 - startInt)
     
     end = runner['end']
@@ -237,9 +240,9 @@ minimumBases = get_minimum_potential_bases(args.start, args.end)
 leagueRMI = RMI();
 
 if args.team:
-    print ",Name,RMI,Actual Bases,Potential Bases,RBI,Runs,Hits,At-Bats,Batting Avg,OBP,SLG" 
+    print ",Name,RMI,Actual Bases,Potential Bases,RBI,Runs,Hits,At-Bats,Batting Avg,OBP,SLG,1st Occupied, 2nd Occupied, 3rd Occupied" 
 else:
-    print ",Name,RMI,Actual Bases,Potential Bases,RBI,Hits,At-Bats,Batting Avg,OBP,SLG" 
+    print ",Name,RMI,Actual Bases,Potential Bases,RBI,Hits,At-Bats,Batting Avg,OBP,SLG,1st Occupied, 2nd Occupied, 3rd Occupied" 
     
 i = 0
 qualifyingRMIs = [] 
@@ -249,9 +252,9 @@ for rmi in allRMIs:
     if rmi.potentialBases > minimumBases:
         i+=1
         if args.team:
-            print '{},{},{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.runs, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage())
+            print '{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.runs, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage(), rmi.firstBaseRunners, rmi.secondBaseRunners, rmi.thirdBaseRunners)
         else:
-            print '{},{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage())
+            print '{},{},{},{},{},{},{},{},{},{},{},{},{},{}'.format(i, rmi.name, rmi.rmi, rmi.actualBases, rmi.potentialBases, rmi.rbi, rmi.get_hits(), rmi.atBats, rmi.get_batting_average(), rmi.get_on_base_percentage(), rmi.get_slugging_percentage(), rmi.firstBaseRunners, rmi.secondBaseRunners, rmi.thirdBaseRunners)
         qualifyingRMIs.append(rmi)
 
 if args.stats:

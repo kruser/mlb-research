@@ -14,6 +14,9 @@ class RMI(object):
         '''
         self.potentialBases = 0;
         self.actualBases = 0;
+        self.firstBaseRunners = 0;
+        self.secondBaseRunners = 0;
+        self.thirdBaseRunners = 0;
         self.rmi = 0.0;
         
     def __str__( self ):
