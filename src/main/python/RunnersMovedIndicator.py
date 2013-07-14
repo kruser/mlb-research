@@ -102,7 +102,7 @@ def adjust_rmi(entities, atbat):
         plateEvent = PlateEventsEnum.from_mlb_event(atbat['event'])
         
     if plateEvent == PlateEventsEnum.RUNNER_OUT:
-        return;
+        return
     
     entityId = None
     if args.team:
@@ -124,6 +124,9 @@ def adjust_rmi(entities, atbat):
                 entities[entityId] = rmi
     
     rmi.add_plate_event(plateEvent);
+    
+    if plateEvent == PlateEventsEnum.INTENTIONAL_WALK:
+        return
                 
     if rmi and 'runner' in atbat:
         runners = atbat['runner']

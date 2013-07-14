@@ -13,12 +13,13 @@ class PlateEventsEnum(object):
     DOUBLE = 2
     TRIPLE = 3
     HOMERUN = 4
-    WALK = 5
-    HIT_BY_PITCH = 6
-    CATCHER_INTERFERENCE = 7
-    SACRIFICE = 8
-    RUNNER_OUT = 9
-    OTHER = 10 # for outs, fielder's choice, etc
+    INTENTIONAL_WALK = 5
+    WALK = 6
+    HIT_BY_PITCH = 7
+    CATCHER_INTERFERENCE = 8
+    SACRIFICE = 9
+    RUNNER_OUT = 10
+    OTHER = 11 # for outs, fielder's choice, etck
     
     @staticmethod
     def from_mlb_event(event):
@@ -32,6 +33,8 @@ class PlateEventsEnum(object):
             return PlateEventsEnum.TRIPLE
         elif re.search('home', event, re.IGNORECASE):
             return PlateEventsEnum.HOMERUN
+        elif re.search('intent walk', event, re.IGNORECASE):
+            return PlateEventsEnum.INTENTIONAL_WALK
         elif re.search('walk', event, re.IGNORECASE):
             return PlateEventsEnum.WALK
         elif re.search('hit by pitch', event, re.IGNORECASE):

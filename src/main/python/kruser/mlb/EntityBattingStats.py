@@ -54,7 +54,7 @@ class EntityBattingStats(RMI):
             self.atBats += 1;
         elif (plateEvent == PlateEventsEnum.OTHER):
             self.atBats += 1;
-        elif (plateEvent == PlateEventsEnum.WALK or plateEvent == PlateEventsEnum.CATCHER_INTERFERENCE):
+        elif (plateEvent == PlateEventsEnum.WALK or plateEvent == PlateEventsEnum.CATCHER_INTERFERENCE or plateEvent == PlateEventsEnum.INTENTIONAL_WALK):
             self.walks += 1;
         elif (plateEvent == PlateEventsEnum.HIT_BY_PITCH):
             self.hitByPitch += 1;
