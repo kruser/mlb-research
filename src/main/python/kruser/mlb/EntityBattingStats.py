@@ -65,11 +65,17 @@ class EntityBattingStats(RMI):
         return self.singles + self.doubles + self.triples + self.homeruns
     
     def get_batting_average(self):
-        return float(self.get_hits()) / float(self.atBats)
+        if self.atBats > 0:
+            return float(self.get_hits()) / float(self.atBats)
+        else:
+            return 0.0
 
     def get_on_base_percentage(self):
         return float(self.get_hits() + self.walks + self.hitByPitch) / float(self.atBats + self.walks + self.hitByPitch + self.sacrifices)
     
     def get_slugging_percentage(self):
-        return float(self.singles + self.doubles*2 + self.triples*3 + self.homeruns*4) / float(self.atBats)
+        if self.atBats > 0:
+            return float(self.singles + self.doubles*2 + self.triples*3 + self.homeruns*4) / float(self.atBats)
+        else:
+            return 0.0
     
