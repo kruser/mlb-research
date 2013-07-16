@@ -39,9 +39,18 @@ args = parser.parse_args()
 client = MongoClient()
 db = client.mlbatbat
 
-def adjust_rmi_for_runner(rmi, runner):
+def is_rmi_eligible_event(plateEvent):
+    '''
+    returns true if this plate event should be used for calculating RMI. False otherwise
+    :param plateEvent: the MLB string for the plate event
+    '''
+    pe = PlateEventsEnum.from_mlb_event(plateEvent)
+    return pe != PlateEventsEnum.INTENTIONAL_WALK and pe != PlateEventsEnum.CATCHER_INTERFERENCE
+
+def adjust_rmi_for_runner_activity(atbat, rmi, runner):
     '''
     Adjust the RMI given a single runner from the AtBat schema
+    :param atbat: the entire at-bat. we need this for the event 
     :param rmi: the starting RMI, can't be null
     :param runner: the runner data, can't be null
     '''
@@ -55,10 +64,13 @@ def adjust_rmi_for_runner(rmi, runner):
         scored = runner['score'] 
         if scored == 'T':
             rmi.add_runs(1)
-            
+        
+    if not is_rmi_eligible_event(atbat['event']):
+        return
+    
     if 'event' in runner:
         event = runner['event']
-        if re.search('runner out|caught stealing', event, re.IGNORECASE):
+        if event != atbat['event'] and not re.search('Pickoff Attempt', event, re.IGNORECASE):
             return
                 
     start = runner['start']
@@ -67,14 +79,10 @@ def adjust_rmi_for_runner(rmi, runner):
         return
     elif start == '1B':
         startInt = 1 
-        rmi.firstBaseRunners += 1
     elif start == '2B':
         startInt = 2 
-        rmi.secondBaseRunners += 1
     elif start == '3B':
         startInt = 3 
-        rmi.thirdBaseRunners += 1
-    rmi.add_potential_bases_moved(4 - startInt)
     
     end = runner['end']
     endInt = 0
@@ -125,14 +133,27 @@ def adjust_rmi(entities, atbat):
     
     rmi.add_plate_event(plateEvent);
     
-    if plateEvent == PlateEventsEnum.INTENTIONAL_WALK:
-        return
-                
+    if 'pitch' in atbat and is_rmi_eligible_event(atbat['event']):
+        pitches = atbat['pitch']
+        lastPitch = pitches[len(pitches) - 1]
+        if 'on_1b' in lastPitch and lastPitch['on_1b']:
+            rmi.add_potential_bases_moved(3)
+            rmi.firstBaseRunners += 1
+        if 'on_2b' in lastPitch and lastPitch['on_2b']:
+            rmi.add_potential_bases_moved(2)
+            rmi.secondBaseRunners += 1
+        if 'on_3b' in lastPitch and lastPitch['on_3b']:
+            rmi.add_potential_bases_moved(1)
+            rmi.thirdBaseRunners += 1
+    
+    # use runners that moved as a result of the atbat->event in adjusting actual RMI
+    # Note that MLB data has a bug with pickoff attemps not being attributed to the 
+    # plate event/hit
     if rmi and 'runner' in atbat:
         runners = atbat['runner']
         if runners:
             for runner in runners:
-                adjust_rmi_for_runner(rmi, runner)
+                adjust_rmi_for_runner_activity(atbat, rmi, runner)
             
 def get_player(playerId):
     '''
