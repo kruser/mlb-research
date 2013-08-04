@@ -10,7 +10,6 @@ from datetime import datetime
 from numpy import mean
 from numpy import std
 from matplotlib import pyplot 
-from scipy import stats
 import argparse
 
 def make_date(datestr):
@@ -23,11 +22,15 @@ def standard_stats(array, heading):
     :param array: an array of data
     :param heading: a heading string
     '''
+    average = mean(array);
+    deviation = std(array);
+    
     print heading
-    print 'Mean: {}'.format(mean(array))
+    print 'Mean: {}'.format(average)
     print 'Max: {}'.format(max(array))
     print 'Min: {}'.format(min(array))
-    print 'STD: {}'.format(std(array))
+    print 'STD: {}'.format(deviation)
+    print 'Boundaries: {} to {}'.format(average + (deviation*2), average - (deviation*2))
     print ''
     
 # setup the args.
