@@ -10,7 +10,6 @@ from pymongo import MongoClient
 from datetime import datetime
 from numpy import mean
 from numpy import std
-from numpy import histogram
 from matplotlib import pyplot 
 import argparse
 
