@@ -40,10 +40,17 @@ def get_player_id():
 
 playerId = get_player_id()
 
+title = '{} {}: {} to {}'.format(args.player[0], args.player[1], args.start.strftime("%m/%d/%Y"), args.end.strftime("%m/%d/%Y"))
+
 query = {'hip':{'$exists':True},'atbat.batter':playerId,'tfs_zulu':{'$gte':args.start, '$lt':args.end}}
 if args.pxRange:
     query['px'] = {'$gte':float(args.pxRange[0]), '$lte':float(args.pxRange[1])}
-
+    title += '\nPitch Placement - Horizontal Offset: {}ft to {}ft'.format(args.pxRange[0], args.pxRange[1])
+    
+if args.pitchType:
+    query['pitch_type'] = {'$in':args.pitchType}
+    title += '\nPitch Types: {}'.format(args.pitchType)
+    
 pitchesCollection = db.pitches
 hitPitches = pitchesCollection.find(query)
 
@@ -57,4 +64,5 @@ pyplot.figure()
 im = pyplot.imread('../../main/resources/stadiumImages/1.png')
 implot = pyplot.imshow(im)
 pyplot.scatter(hx, hy)
+pyplot.title(title)
 pyplot.show()
