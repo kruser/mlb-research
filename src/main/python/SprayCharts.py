@@ -9,6 +9,7 @@ from pymongo import MongoClient
 from datetime import datetime
 import argparse
 from matplotlib import pyplot
+import re
 
 def make_date(datestr):
     return datetime.strptime(datestr, '%m/%d/%Y')
@@ -54,15 +55,39 @@ if args.pitchType:
 pitchesCollection = db.pitches
 hitPitches = pitchesCollection.find(query)
 
-hx = []
-hy = []
+groundersX = []
+groundersY = []
+
+linersX = []
+linersY = []
+
+flyballsX = []
+flyballsY = []
+
+popupsX = []
+popupsY = []
+
 for pitch in hitPitches:
-    hx.append(pitch['hip']['x']);
-    hy.append(pitch['hip']['y']);
+    if re.search('pop up|pops out', pitch['atbat']['des'], re.IGNORECASE):
+        popupsX.append(pitch['hip']['x']);
+        popupsY.append(pitch['hip']['y']);
+    elif re.search('line drive|lines out', pitch['atbat']['des'], re.IGNORECASE):
+        linersX.append(pitch['hip']['x']);
+        linersY.append(pitch['hip']['y']);
+    elif re.search('fly ball|flies out', pitch['atbat']['des'], re.IGNORECASE):
+        flyballsX.append(pitch['hip']['x']);
+        flyballsY.append(pitch['hip']['y']);
+    else:
+        groundersX.append(pitch['hip']['x']);
+        groundersY.append(pitch['hip']['y']);
 
 pyplot.figure()
 im = pyplot.imread('../../main/resources/stadiumImages/1.png')
 implot = pyplot.imshow(im)
-pyplot.scatter(hx, hy)
+pyplot.scatter(groundersX, groundersY, marker='v', c="black", label="Grounder")
+pyplot.scatter(linersX, linersY, marker='o', label="Liner")
+pyplot.scatter(flyballsX, flyballsY, marker='^', c="r", label="Fly Ball")
+pyplot.scatter(popupsX, popupsY, marker='s', label="Pop Up")
+pyplot.legend()
 pyplot.title(title)
 pyplot.show()
