@@ -87,7 +87,8 @@ pitchesCollection = db.pitches
 
 players = {}
 
-mongoFilter = {'hip.angle':{'$exists':True},'tfs_zulu':{'$gte':args.start, '$lt':args.end}}
+# only get hits within 5 degrees of the foul pole. We want to exclude terrible mis-hit pop ups behind the plate
+mongoFilter = {'hip.angle':{'$exists':True}, 'hip.angle':{'$gte':40, '$lte':140}, 'tfs_zulu':{'$gte':args.start, '$lt':args.end}}
 
 middleL = ((plateBoundaries['L'][1] - plateBoundaries['L'][0]) / 2) + plateBoundaries['L'][0];
 middleR = ((plateBoundaries['R'][1] - plateBoundaries['R'][0]) / 2) + plateBoundaries['R'][0];
@@ -111,15 +112,13 @@ for pitch in hitPitches:
         hitAngle = pitch['hip']['angle']
         expectedFieldAngle = get_expected_angle(hand, px)
         tracker.add_hit_ball(hand, hitAngle, expectedFieldAngle)
-        #print 'hand {}, px {}, angle {}, expected {}, score {}'.format(hand, px, hitAngle, expectedFieldAngle, tracker.get_score())
-
 
 playerTrackers = players.values()
 playerTrackers.sort(key=lambda tracker: tracker.get_score(), reverse=False)
 
 minHitBalls = get_minimum_hit_balls(args.start, args.end)
 
-print 'Batter,Absolute Score,Average Score,Standard Deviation,Hit Balls'
+print 'Batter,Average Absolute Angle Difference,Mean Angle Difference (Pull Tendency),Standard Deviation,Hit Balls'
 for tracker in playerTrackers:
     if tracker.get_hit_count() >= minHitBalls:
         player = get_player(tracker.batterId)
